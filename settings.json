@@ -1,6 +1,7 @@
 {
     "zoom_api_token": "",
     "seq_count": 0,
-    "lang": "en-US",
-    "mic_timeout": 3
+    "lang": "zh",
+    "mic_timeout": 3,
+    "phrase_time_limit": 3
 }

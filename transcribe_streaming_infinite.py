@@ -37,6 +37,8 @@ import sys
 from google.cloud import speech
 import pyaudio
 from six.moves import queue
+from distutils.util import strtobool
+from speech_recognizer_closed_captions import ZoomClosedCaptions
 
 # Audio recording parameters
 STREAMING_LIMIT = 60000  # 1 minutes
@@ -85,6 +87,7 @@ class ResumableMicrophoneStream:
             # overflow while the calling thread makes network requests, etc.
             stream_callback=self._fill_buffer,
         )
+        self.zcc = ZoomClosedCaptions()
 
     def __enter__(self):
 
@@ -106,26 +109,6 @@ class ResumableMicrophoneStream:
 
         self._buff.put(in_data)
         return None, pyaudio.paContinue
-
-    def set_Zoom_API_token(self):
-        """Configure Zoom API token and starting sequence number"""
-        API_ENDPOINT = str(input('Enter the API token from Zoom > Closed Caption > Use a 3rd party CC service:\n>>'))
-        while not API_ENDPOINT or "http" not in API_ENDPOINT:
-            API_ENDPOINT = str(input('>>'))
-
-        i = input('Enter start sequence number:\n>>')
-        if not i:
-            print('Using 0 by default')
-            i = 0
-        else:
-            try:
-                i = int(i)
-            except ValueError:
-                print('Invalid number, using 0 by default')
-                i = 0
-        self.api_token = API_ENDPOINT
-        self.seq_count = i
-        self.post_params = {'seq':str(self.seq_count), 'lang':'en-US'}
 
     def generator(self):
         """Stream Audio from microphone to API and to local buffer"""
@@ -236,10 +219,7 @@ def listen_print_loop(responses, stream):
             sys.stdout.write(GREEN)
             sys.stdout.write('\033[K')
             sys.stdout.write(str(corrected_time) + ': ' + transcript + '\n')
-            stream.post_params['seq'] = str(stream.seq_count)
-            r1 = requests.post(stream.api_token, params=stream.post_params, data=transcript)
-            print('Post made {}'.format(r1.text))
-            stream.seq_count = stream.seq_count + 1
+            stream.zcc.post_transcript(transcript)
             stream.is_final_end_time = stream.result_end_time
             stream.last_transcript_was_final = True
 
@@ -261,19 +241,17 @@ def listen_print_loop(responses, stream):
 def main():
     """start bidirectional streaming from microphone input to speech API"""
 
+    mic_manager = ResumableMicrophoneStream(SAMPLE_RATE, CHUNK_SIZE)
+
     client = speech.SpeechClient()
     config = speech.types.RecognitionConfig(
         encoding=speech.enums.RecognitionConfig.AudioEncoding.LINEAR16,
         sample_rate_hertz=SAMPLE_RATE,
-        language_code='en-US',
+        language_code=mic_manager.zcc.post_params['lang'],
         max_alternatives=1)
     streaming_config = speech.types.StreamingRecognitionConfig(
         config=config,
         interim_results=True)
-
-    mic_manager = ResumableMicrophoneStream(SAMPLE_RATE, CHUNK_SIZE)
-
-    mic_manager.set_Zoom_API_token()
 
     print(mic_manager.chunk_size)
     sys.stdout.write(YELLOW)

@@ -16,11 +16,6 @@ Example usage:
     python speech_recognizer_closed_captions.py
 """
 
-sys.stdout.write('\033[K')
-GREEN = '\u001b[32m'
-YELLOW = '\u001b[33m'
-RESET = '\u001b[0m'
-
 class ZoomClosedCaptions:
     """
     Provides closed captions with SpeechRecognition libary via Zoom 3rd party clsoed caption API
@@ -30,54 +25,66 @@ class ZoomClosedCaptions:
         """
         Initialization
         """
-        self.r = sr.Recognizer()
-        # self.r.non_speaking_duration 
-        # self.r.phrase_threshold
-        # self.r.operation_timeout
-        self.mic = sr.Microphone()
+        self.r = None 
+        self.mic = None
+        self.settings_file = "settings.json"
+        self.api_token = ""
         self.seq_count = 0
         self.post_params = {'seq': str(self.seq_count), 'lang': 'en-US'}
-        self.payload = ''
-        self.mic_timeout = 3
+        self.payload = ""
+        self.mic_timeout = 30
+        self.phrase_time_limit = 30
 
-        if strtobool(input("Load settings from config?")):
+        # Command line colors
+        self.RED = '\u001b[31m'
+        self.GREEN = '\u001b[32m'
+        self.YELLOW = '\u001b[33m'
+        self.PURPLE = '\u001b[35m'
+        self.CYAN = '\u001b[36m'
+        self.RESET = '\u001b[0m' 
+
+        if strtobool(input("{}Load settings from config? {}".format(self.PURPLE, self.RESET))):
             self.load_config()
         else:
-            self.set_Zoom_API_token()
+            self.input_config()
         
-        self.run()
-
-    def __exit__(self, exception_type, exception_value, traceback):
-        print('in __exit__')
         self.save_config()
 
-    def set_Zoom_API_token(self):
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        self.save_config()
+        print("{}Exiting. Last sequence sent = {} {}".format(self.YELLOW, self.seq_count, self.RESET))
+
+    def input_config(self):
         """
-        Configure Zoom API settings
+        Configure Zoom API settings from command line
         """
         # Command line input
-        API_ENDPOINT = str(input(YELLOW+'Enter the API token from Zoom > Closed Caption > Use a 3rd party CC service:\n>>'+RESET))
+        API_ENDPOINT = str(input(
+            "{}Enter the API token from Zoom > Closed Caption > Use a 3rd party CC service:\n>>{}".format(self.PURPLE,self.RESET)))
         while not API_ENDPOINT or "http" not in API_ENDPOINT:
             API_ENDPOINT = str(input('>>'))
 
-        i = input(YELLOW+'Enter start sequence number:\n>>'+RESET)
+        i = input("{}Enter start sequence numer:\n>>{}".format(self.PURPLE,self.RESET))
         if not i:
-            print('Using 0 by default')
+            print("Using 0 by default")
             i = 0
         else:
             try:
                 i = int(i)
             except ValueError:
-                print('Invalid number, using 0 by default')
+                print("Invalid number, using 0 by default")
                 i = 0
         self.api_token = API_ENDPOINT
         self.seq_count = i
     
     def load_config(self):
         """
-        Load Zoom API settings from file
+        Load Zoom API settings from JSON file
         """
-        with open('settings.json') as config_file:
+        with open(self.settings_file) as config_file:
             data = json.load(config_file)
         
         # Required parameters
@@ -85,67 +92,82 @@ class ZoomClosedCaptions:
         self.seq_count = data['seq_count']
         if not self.api_token:
             print("Missing API token from settings")
-            self.api_token = str(input(YELLOW+'Enter the API token from Zoom > Closed Caption > Use a 3rd party CC service:\n>>'+RESET))
-            while not self.api_token or "http" not in self.api_token:
-                self.api_token = str(input('>>'))
-            self.seq_count = 0
+            self.input_config()
 
         # Optinal parameters
-        if 'mic_timeout' in data:
-            self.mic_timeout = int(data['mic_timeout'])
         if 'lang' in data and data['lang']:
             self.post_params['lang'] = data['lang']
+        if 'mic_timeout' in data:
+            self.mic_timeout = int(data['mic_timeout'])
+        if 'phrase_time_limit' in data:
+            self.phrase_time_limit = int(data['phrase_time_limit'])
         
     def save_config(self):
         """
         Save settings on exit
         """
-        print('Updating settings.json')
-        with open('settings.json') as config_file:
+        print("Updating {}".format(self.settings_file))
+        with open(self.settings_file) as config_file:
             data = json.load(config_file)
         data['zoom_api_token'] = self.api_token
         data['seq_count'] = self.seq_count
-        with open('settings.json', 'w') as outfile:
+        with open(self.settings_file, 'w') as outfile:
             json.dump(data, outfile, indent=4)
+
+    def post_transcript(self, transcript):
+        """
+        POST transcript to Zoom
+        """
+        self.post_params['seq'] = str(self.seq_count)
+        r1 = requests.post(self.api_token,
+            params=self.post_params, data=transcript.encode('utf-8'),
+            headers={'Content-type': 'text/plain; charset=utf-8'})
+        print(r1.text)
+        self.seq_count+=1
+
+    def create_recognizer(self):
+        """
+        Create recognizer objects
+        """
+        self.r = sr.Recognizer()
+        self.mic = sr.Microphone()
 
     def run(self):
         """
         Run speech recognition / POST loop
         """
+        self.create_recognizer()
         while True:
             try:
                 with self.mic as source:
                     print('Calibrating for ambient noise...')
                     self.r.adjust_for_ambient_noise(source)
                     print('Energy threshold={}'.format(self.r.energy_threshold))
-                    print(YELLOW+'Say something (or press ctrl+C to exit)'+RESET)
+                    print('{}Say something (or press ctrl+C to exit) {}'.format(self.PURPLE,self.RESET))
                     try:
-                        audio = self.r.listen(source, timeout=self.mic_timeout)
+                        audio = self.r.listen(source,
+                            timeout=self.mic_timeout, phrase_time_limit=self.phrase_time_limit)
                         print('Transcribing...')
-                        self.payload = self.r.recognize_google(audio)
+                        self.payload = self.r.recognize_google(audio, language=self.post_params['lang'])
                         #self.payload = r.recognize_sphinx(audio)
                     except KeyboardInterrupt:
-                        print("{}Exiting. Last sequence sent = {} {}".format(YELLOW, self.seq_count, RESET))
                         break
                     except sr.WaitTimeoutError:
                         print("Timeout error, continuing...")
                         continue
                     except sr.UnknownValueError:
-                        print("Unknown value error, continuing...")
+                        print("Nothing said, continuing...")
                         continue
                     except:
-                        print("{}Unexpected error: {}{}".format(RED, sys.exc_info()[0], RESET))
+                        print('{}Unexpected error: {}{}'.format(self.RED, sys.exc_info()[0], self.RESET))
                         raise
                 
-                print("{} >> seq {}: {} {}".format(GREEN, self.seq_count, self.payload, RESET))
-                self.post_params['seq'] = str(self.seq_count)
-                r1 = requests.post(self.api_token, params=self.post_params, data=self.payload)
-                print(r1.text)
-                self.seq_count+=1
+                print("{} >> seq {}: {} {}".format(self.GREEN, self.seq_count, self.payload, self.RESET))
+                self.post_transcript(self.payload)
             except KeyboardInterrupt:
-                print("{}Exiting. Last sequence sent = {} {}".format(YELLOW, self.seq_count, RESET))
                 break
-        self.save_config()
 
 if __name__ == '__main__':
     zcc = ZoomClosedCaptions()
+    with zcc:
+        zcc.run()
