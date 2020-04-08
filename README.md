@@ -34,7 +34,8 @@ Right now only Mac OSX is supported without following the [development](#develop
 - Open up Finder to where `zoom_cc_0.1_OSX` is downloaded. Click and drag `zoom_cc_v0.1_OSX/dist/zoom_cc_v0.1_OSX` to the Terminal Window
 - Press enter to run
 
-5. When prompted, type `y` to load settings from `settings.config`. Otherwise paste API token and set sequence count via command line when prompted.
+5. When prompted, type `y` to load settings from `settings.config`. Otherwise paste API token via command line with ⌘V when prompted.
+![Enter API token](ZoomCCTerminalView.png)
 
 6. Check Zoom for transcriptions. Words should be appearing on the bottom of the screen and in the full transcript.
 ![Open Zoom Transcript](ZoomFullTranscript.png) <!-- .element height="50%" width="50%" -->
