@@ -15,7 +15,7 @@ This is a simple Python script that uses speech recognition libraries to post [3
 
 Right now only Mac OSX is supported without following the [development](#development) installation instructions.
 
-0. Download & unzip the latest release of zoom_cc.
+0. Download & unzip the [latest release of zoom_cc](https://github.com/heyyeh12/zoom_cc/releases).
 
 1. Enable closed captioning in Zoom settings. Refer to [Zoom Help Center for instructions](https://support.zoom.us/hc/en-us/articles/207279736-Getting-started-with-closed-captioning).
 
