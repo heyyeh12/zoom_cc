@@ -1,8 +1,10 @@
+import argparse
+from distutils.util import strtobool
 import json
 import requests
+import os
 import speech_recognition as sr
 import sys
-from distutils.util import strtobool
 
 """Simple application using SpeechRecognition to provide Zoom closed captions.
 
@@ -27,7 +29,11 @@ class ZoomClosedCaptions:
         """
         self.r = None 
         self.mic = None
-        self.settings_file = "settings.json"
+        if getattr(sys, 'frozen', False):
+            application_path = os.path.dirname(sys.executable)
+        elif __file__:
+            application_path = os.path.dirname(__file__)
+        self.settings_file = os.path.join(os.path.dirname(application_path),"settings.json")
         self.api_token = ""
         self.seq_count = 0
         self.post_params = {'seq': str(self.seq_count), 'lang': 'en-US'}
@@ -43,12 +49,24 @@ class ZoomClosedCaptions:
         self.CYAN = '\u001b[36m'
         self.RESET = '\u001b[0m' 
 
-        if strtobool(input("{}Load settings from config? {}".format(self.PURPLE, self.RESET))):
+        self.gui = False
+        #self.parse_args()
+
+        if self.gui:
             self.load_config()
         else:
-            self.input_config()
-        
-        self.save_config()
+            if strtobool(input("{}Load settings from config? {}".format(self.PURPLE, self.RESET))):
+                self.load_config()
+            else:
+                self.input_config()
+            self.save_config()
+    
+    def parse_args(self):
+        parser = argparse.ArgumentParser(description='Parse Zoom CC options')
+        parser.add_argument('--gui', dest='gui', action='store_true',
+            help="Assumes run from GUI without input options")
+        args, unknown = parser.parse_known_args()
+        self.gui = args.gui
 
     def __enter__(self):
         pass
@@ -66,19 +84,8 @@ class ZoomClosedCaptions:
             "{}Enter the API token from Zoom > Closed Caption > Use a 3rd party CC service:\n>>{}".format(self.PURPLE,self.RESET)))
         while not API_ENDPOINT or "http" not in API_ENDPOINT:
             API_ENDPOINT = str(input('>>'))
-
-        i = input("{}Enter start sequence numer:\n>>{}".format(self.PURPLE,self.RESET))
-        if not i:
-            print("Using 0 by default")
-            i = 0
-        else:
-            try:
-                i = int(i)
-            except ValueError:
-                print("Invalid number, using 0 by default")
-                i = 0
         self.api_token = API_ENDPOINT
-        self.seq_count = i
+        self.seq_count = 0
     
     def load_config(self):
         """

@@ -9,6 +9,7 @@ verify_ssl = true
 google-cloud-speech = "*"
 pyaudio = "*"
 speechrecognition = "*"
+pyinstaller = "*"
 
 [requires]
 python_version = "3.8"
